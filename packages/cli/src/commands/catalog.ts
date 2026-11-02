@@ -232,7 +232,6 @@ export default defineCommand({
 
     // Asked for the whole manifest on purpose: its item list defines coverage,
     // and its artifact revision is the one owner of vector freshness.
-    // An unreachable registry is an error with its reason, never the empty list a reachable empty registry gives.
     const manifest = await readRegistryManifest(config.registry).catch((error: unknown) => {
       console.error(error instanceof Error ? error.message : String(error));
       return finishCommand(1);
