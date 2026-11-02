@@ -1,6 +1,11 @@
 import { readBoundedRegistryFile } from "./boundedFile.js";
 import { publishRegistryFile, registryRoot } from "./publication.js";
-import { fetchRegistryHttps, registryHttpsUrl, registryPathUrl } from "./transport.js";
+import {
+  DEFAULT_REGISTRY_URL,
+  fetchRegistryHttps,
+  registryHttpsUrl,
+  registryPathUrl,
+} from "./transport.js";
 import { readBoundedResponse, type DownloadByteBudget } from "../capture/readBoundedResponse.js";
 import { validRegistryName, validRegistryManifest, validRegistryItem } from "./validation.js";
 /**
@@ -28,8 +33,7 @@ import {
   type RegistryManifest,
 } from "@hyperframes/core";
 
-export const DEFAULT_REGISTRY_URL =
-  "https://raw.githubusercontent.com/heygen-com/hyperframes/main/registry";
+export { DEFAULT_REGISTRY_URL } from "./transport.js";
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_MANIFEST_BYTES = 10 * 1024 * 1024;
@@ -123,10 +127,17 @@ async function fetchJson<T>(url: string, validate: (value: unknown) => value is 
  * because "check for something newer" and "rather have nothing than this" are
  * different requests and only the first one is ever made.
  */
-export async function fetchRegistryManifest(
+export const fetchRegistryManifest = (
   baseUrl: string = DEFAULT_REGISTRY_URL,
   options?: { skipCache?: boolean },
-): Promise<RegistryManifest | undefined> {
+): Promise<RegistryManifest | undefined> =>
+  readRegistryManifest(baseUrl, options).catch(() => undefined);
+
+/** The manifest as fetchRegistryManifest gives it, but unreachable and never cached throws why, never undefined. */
+export async function readRegistryManifest(
+  baseUrl: string = DEFAULT_REGISTRY_URL,
+  options?: { skipCache?: boolean },
+): Promise<RegistryManifest> {
   const url = registryPathUrl(baseUrl, "registry.json");
   const cacheFile = cachePath(baseUrl, "registry");
   const cached = readCacheEntry(cacheFile, validRegistryManifest);
@@ -136,8 +147,9 @@ export async function fetchRegistryManifest(
     const manifest = await fetchJson(url, validRegistryManifest);
     writeCache(cacheFile, manifest);
     return manifest;
-  } catch {
-    return cached?.data;
+  } catch (err) {
+    if (cached) return cached.data;
+    throw new Error(`The registry could not be read: ${describeCauseChain(err)}`, { cause: err });
   }
 }
 
